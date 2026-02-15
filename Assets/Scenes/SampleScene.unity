@@ -428,6 +428,7 @@ GameObject:
   - component: {fileID: 519420029}
   - component: {fileID: 519420030}
   - component: {fileID: 519420033}
+  - component: {fileID: 519420034}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -547,7 +548,7 @@ Transform:
   m_GameObject: {fileID: 519420028}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 8.46, y: 8.98, z: -10}
+  m_LocalPosition: {x: 6.55, y: 7.87, z: -10}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -569,6 +570,21 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 4294967295
   m_MaxRayIntersections: 0
+--- !u!114 &519420034
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 519420028}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: efc4e20e73f1e1b4dbb733c7213d7d76, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CameraShake
+  defaultDuration: 0.08
+  defaultMagnitude: 0.06
+  dampingSpeed: 8
 --- !u!1 &619394800
 GameObject:
   m_ObjectHideFlags: 0
@@ -682,8 +698,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 98c034596765a934fa650854c945da21, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Match3.Game.Match3Controller
-  width: 6
-  height: 6
+  width: 8
+  height: 8
   gemPrefabs:
   - {fileID: 6483164389044409118, guid: 09cf565d76be9ab41bc008bf58b9d288, type: 3}
   - {fileID: 6483164389044409118, guid: a7998217bf516c145a8ab3a2b167c42b, type: 3}
