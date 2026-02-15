@@ -10,8 +10,8 @@ GameObject:
   m_Component:
   - component: {fileID: 6459564808165734611}
   - component: {fileID: 2103117989333994163}
-  - component: {fileID: 970608516943447703}
   - component: {fileID: 7958537209106368990}
+  - component: {fileID: 7608239017430071666}
   m_Layer: 0
   m_Name: GemSprite 1
   m_TagString: Untagged
@@ -93,26 +93,6 @@ SpriteRenderer:
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
   m_SpriteSortPoint: 0
---- !u!114 &970608516943447703
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6483164389044409118}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 3b331205008a22a4786774a50e40d68d, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Gem
-  x: 0
-  y: 0
-  type: 0
-  special: 0
-  squashAmount: 0.12
-  squashDuration: 0.08
-  destroyDuration: 0.15
-  destroyScale: 1.2
 --- !u!61 &7958537209106368990
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -151,7 +131,7 @@ BoxCollider2D:
   m_SpriteTilingProperty:
     border: {x: 0, y: 0, z: 0, w: 0}
     pivot: {x: 0.5, y: 0.5}
-    oldSize: {x: 1.1171875, y: 1.03125}
+    oldSize: {x: 2.234375, y: 2.0625}
     newSize: {x: 1, y: 1}
     adaptiveTilingThreshold: 0.5
     drawMode: 0
@@ -159,3 +139,15 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 1, y: 1}
   m_EdgeRadius: 0
+--- !u!114 &7608239017430071666
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6483164389044409118}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dbafae2e4e3533e448905b815e8e00dd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Match3.View.GemView

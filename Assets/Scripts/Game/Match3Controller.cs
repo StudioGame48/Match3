@@ -128,6 +128,7 @@ namespace Match3.Game
                 // 1) destroy matched (model + view)
                 var destroyed = new List<GemView>(matches.Count);
 
+                // 1) destroy matched (model + view)
                 foreach (var c in matches)
                 {
                     model.Set(c.x, c.y, null);
@@ -136,14 +137,11 @@ namespace Match3.Game
                     views[c.x, c.y] = null;
 
                     if (v != null)
-                    {
-                        destroyed.Add(v);
-                        StartCoroutine(v.PlayDestroy());
-                        Destroy(v.gameObject, 0.16f);
-                    }
+                        StartCoroutine(DestroyViewRoutine(v));
                 }
 
                 yield return new WaitForSeconds(0.18f);
+
 
                 // 2) gravity in model
                 GravitySolver.Apply(model, out var moves, out var spawnCells);
@@ -189,6 +187,19 @@ namespace Match3.Game
                     yield return boardView.AnimateMoves(moving, targetPos);
             }
         }
+
+        IEnumerator DestroyViewRoutine(GemView v)
+        {
+            // если кто-то уже удалил
+            if (v == null) yield break;
+
+            yield return v.PlayDestroy();
+
+            // мог быть уничтожен во время анимации
+            if (v != null)
+                Destroy(v.gameObject);
+        }
+
     }
 }
 
