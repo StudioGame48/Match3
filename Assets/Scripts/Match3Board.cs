@@ -1,6 +1,9 @@
-using System.Collections;
+п»їusing System.Collections;
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
+using UnityEngine.SocialPlatforms.Impl;
+
 
 public class Match3Board : MonoBehaviour
 {
@@ -9,6 +12,9 @@ public class Match3Board : MonoBehaviour
     public float cellSize = 1f;
     public GameObject[] gemPrefabs;
     public Transform gridParent;
+    [Header("Score System")]
+    int score = 0;
+
 
     private Gem[,] grid;
     private bool busy;
@@ -19,7 +25,16 @@ public class Match3Board : MonoBehaviour
     [SerializeField] float bounceStrength = 0.08f;
     [SerializeField] float bounceDuration = 0.06f;
     [SerializeField] float swapDuration = 0.18f;
-    
+    [Header("Moves System")]
+    [SerializeField] int maxMoves = 20;
+    [SerializeField] TextMeshProUGUI scoreText;
+    [SerializeField] TMPro.TextMeshProUGUI movesText;
+
+
+
+
+    int movesLeft;
+    bool gameOver = false;
 
 
     CameraShake cameraShake;
@@ -31,10 +46,23 @@ public class Match3Board : MonoBehaviour
     {
         grid = new Gem[width, height];
         Generate();
+        movesLeft = maxMoves;
+        UpdateMovesUI();
+
+
 
         cameraShake = Camera.main.GetComponent<CameraShake>();
 
         StartCoroutine(InitialDrop());
+        movesLeft = maxMoves;
+        UpdateScoreUI();
+
+    }
+
+    void UpdateMovesUI()
+    {
+        if (movesText != null)
+            movesText.text = "Moves: " + movesLeft;
     }
 
 
@@ -59,7 +87,7 @@ public class Match3Board : MonoBehaviour
         grid[x, y] = gem;
     }
 
-   
+
 
 
     int GetSafeType(int x, int y)
@@ -69,7 +97,7 @@ public class Match3Board : MonoBehaviour
         for (int i = 0; i < gemPrefabs.Length; i++)
             available.Add(i);
 
-        // Проверка горизонтали
+        // РџСЂРѕРІРµСЂРєР° РіРѕСЂРёР·РѕРЅС‚Р°Р»Рё
         if (x >= 2)
         {
             if (grid[x - 1, y] != null &&
@@ -83,7 +111,7 @@ public class Match3Board : MonoBehaviour
             }
         }
 
-        // Проверка вертикали
+        // РџСЂРѕРІРµСЂРєР° РІРµСЂС‚РёРєР°Р»Рё
         if (y >= 2)
         {
             if (grid[x, y - 1] != null &&
@@ -97,7 +125,7 @@ public class Match3Board : MonoBehaviour
             }
         }
 
-        // Если всё удалилось (теоретически невозможно при >=4 типах)
+        // Р•СЃР»Рё РІСЃС‘ СѓРґР°Р»РёР»РѕСЃСЊ (С‚РµРѕСЂРµС‚РёС‡РµСЃРєРё РЅРµРІРѕР·РјРѕР¶РЅРѕ РїСЂРё >=4 С‚РёРїР°С…)
         if (available.Count == 0)
             return Random.Range(0, gemPrefabs.Length);
 
@@ -110,7 +138,7 @@ public class Match3Board : MonoBehaviour
         busy = true;
         yield return StartCoroutine(AnimateBoard());
 
-        // если при старте случайно есть совпадения — убрать их
+        // РµСЃР»Рё РїСЂРё СЃС‚Р°СЂС‚Рµ СЃР»СѓС‡Р°Р№РЅРѕ РµСЃС‚СЊ СЃРѕРІРїР°РґРµРЅРёСЏ вЂ” СѓР±СЂР°С‚СЊ РёС…
         yield return Resolve();
         busy = false;
     }
@@ -119,7 +147,8 @@ public class Match3Board : MonoBehaviour
 
     public void TrySwap(Gem gem, Vector2Int dir)
     {
-        if (busy) return;
+        if (busy || gameOver) return;
+
 
         int nx = gem.x + dir.x;
         int ny = gem.y + dir.y;
@@ -132,6 +161,8 @@ public class Match3Board : MonoBehaviour
 
     IEnumerator SwapRoutine(Gem a, Gem b)
     {
+        if (gameOver) yield break;
+
         busy = true;
 
         yield return StartCoroutine(AnimateSwap(a, b));
@@ -147,19 +178,38 @@ public class Match3Board : MonoBehaviour
             yield break;
         }
 
+        ConsumeMove();
+
         yield return Resolve();
+
         busy = false;
     }
 
+    void ConsumeMove()
+    {
+        if (gameOver) return;
+
+        movesLeft--;
+        UpdateMovesUI();
+
+        if (movesLeft <= 0)
+        {
+            gameOver = true;
+            Debug.Log("Game Over");
+            // РїРѕР·Р¶Рµ СЃСЋРґР° РґРѕР±Р°РІРёРј РѕРєРЅРѕ РѕРєРѕРЅС‡Р°РЅРёСЏ РёРіСЂС‹
+        }
+    }
+
+
 
     void SwapGridData(Gem a, Gem b)
-{
-    grid[a.x, a.y] = b;
-    grid[b.x, b.y] = a;
+    {
+        grid[a.x, a.y] = b;
+        grid[b.x, b.y] = a;
 
-    (a.x, b.x) = (b.x, a.x);
-    (a.y, b.y) = (b.y, a.y);
-}
+        (a.x, b.x) = (b.x, a.x);
+        (a.y, b.y) = (b.y, a.y);
+    }
 
     IEnumerator AnimateSwap(Gem a, Gem b)
     {
@@ -172,7 +222,7 @@ public class Match3Board : MonoBehaviour
         {
             float t = time / swapDuration;
 
-            // smoothstep (очень приятное движение)
+            // smoothstep (РѕС‡РµРЅСЊ РїСЂРёСЏС‚РЅРѕРµ РґРІРёР¶РµРЅРёРµ)
             float eased = t * t * (3f - 2f * t);
 
             if (a != null)
@@ -188,10 +238,16 @@ public class Match3Board : MonoBehaviour
         if (a != null) a.transform.position = startB;
         if (b != null) b.transform.position = startA;
     }
-
+    void UpdateScoreUI()
+    {
+        if (scoreText != null)
+            scoreText.text = "Score: " + score;
+    }
 
     IEnumerator Resolve()
     {
+     
+
         if (cameraShake != null)
             cameraShake.Shake();
 
@@ -207,12 +263,14 @@ public class Match3Board : MonoBehaviour
             yield return Fill();
 
 
+
             if (matches.Count > 0 && cameraShake != null)
             {
                 float intensity = Mathf.Clamp(matches.Count / 3f, 0.2f, 2f);
                 cameraShake.ShakeScaled(intensity);
             }
-
+            score += matches.Count * 10;
+            UpdateScoreUI();
         }
 
 
@@ -228,7 +286,7 @@ public class Match3Board : MonoBehaviour
                 Gem g = grid[x, y];
                 if (g == null) continue;
 
-                // горизонталь
+                // РіРѕСЂРёР·РѕРЅС‚Р°Р»СЊ
                 if (x < width - 2)
                 {
                     if (grid[x + 1, y] != null &&
@@ -242,7 +300,7 @@ public class Match3Board : MonoBehaviour
                     }
                 }
 
-                // вертикаль
+                // РІРµСЂС‚РёРєР°Р»СЊ
                 if (y < height - 2)
                 {
                     if (grid[x, y + 1] != null &&
@@ -272,21 +330,22 @@ public class Match3Board : MonoBehaviour
             valid.Add(g);
         }
 
-        // проигрываем анимацию
+        // Р–РґС‘Рј Р°РЅРёРјР°С†РёСЋ СѓРЅРёС‡С‚РѕР¶РµРЅРёСЏ
         foreach (Gem g in valid)
         {
             if (g != null)
-                StartCoroutine(g.PlayDestroy());
+                yield return StartCoroutine(g.PlayDestroy());
         }
 
-        yield return new WaitForSeconds(0.15f);
-
+        // РџРѕСЃР»Рµ Р·Р°РІРµСЂС€РµРЅРёСЏ Р°РЅРёРјР°С†РёРё вЂ” СѓРґР°Р»СЏРµРј
         foreach (Gem g in valid)
         {
             if (g != null)
                 Destroy(g.gameObject);
         }
     }
+
+
 
 
 
@@ -319,7 +378,7 @@ public class Match3Board : MonoBehaviour
 
         } while (moved);
 
-        // Теперь анимируем ВСЁ сразу
+        // РўРµРїРµСЂСЊ Р°РЅРёРјРёСЂСѓРµРј Р’РЎРЃ СЃСЂР°Р·Сѓ
         yield return StartCoroutine(AnimateBoard());
     }
 
@@ -350,7 +409,7 @@ public class Match3Board : MonoBehaviour
         {
             float t = time / fallDuration;
 
-            // EaseOutCubic (очень близко к Homescapes)
+            // EaseOutCubic (РѕС‡РµРЅСЊ Р±Р»РёР·РєРѕ Рє Homescapes)
             float eased = 1f - Mathf.Pow(1f - t, 3f);
 
             foreach (var pair in startPos)
@@ -389,7 +448,7 @@ public class Match3Board : MonoBehaviour
         {
             float t = time / bounceDuration;
 
-            // быстрый плотный bounce
+            // Р±С‹СЃС‚СЂС‹Р№ РїР»РѕС‚РЅС‹Р№ bounce
             float offset = Mathf.Sin(t * Mathf.PI) * bounceStrength * (1f - t);
 
             foreach (var pair in moved)
@@ -427,4 +486,8 @@ public class Match3Board : MonoBehaviour
     {
         return FindMatches().Count > 0;
     }
+
+    
+
+
 }
