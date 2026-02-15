@@ -18,7 +18,11 @@ public class Match3Board : MonoBehaviour
     [SerializeField] float fallDuration = 0.45f;
     [SerializeField] float bounceStrength = 0.08f;
     [SerializeField] float bounceDuration = 0.06f;
+    [SerializeField] float swapDuration = 0.18f;
     
+
+
+    CameraShake cameraShake;
 
 
 
@@ -27,6 +31,8 @@ public class Match3Board : MonoBehaviour
     {
         grid = new Gem[width, height];
         Generate();
+
+        cameraShake = Camera.main.GetComponent<CameraShake>();
 
         StartCoroutine(InitialDrop());
     }
@@ -52,6 +58,9 @@ public class Match3Board : MonoBehaviour
 
         grid[x, y] = gem;
     }
+
+   
+
 
     int GetSafeType(int x, int y)
     {
@@ -125,11 +134,15 @@ public class Match3Board : MonoBehaviour
     {
         busy = true;
 
-        SwapData(a, b);
+        yield return StartCoroutine(AnimateSwap(a, b));
+
+        SwapGridData(a, b);
 
         if (!HasMatch())
         {
-            SwapData(a, b);
+            yield return StartCoroutine(AnimateSwap(a, b));
+            SwapGridData(a, b);
+
             busy = false;
             yield break;
         }
@@ -138,32 +151,71 @@ public class Match3Board : MonoBehaviour
         busy = false;
     }
 
-    void SwapData(Gem a, Gem b)
+
+    void SwapGridData(Gem a, Gem b)
+{
+    grid[a.x, a.y] = b;
+    grid[b.x, b.y] = a;
+
+    (a.x, b.x) = (b.x, a.x);
+    (a.y, b.y) = (b.y, a.y);
+}
+
+    IEnumerator AnimateSwap(Gem a, Gem b)
     {
-        grid[a.x, a.y] = b;
-        grid[b.x, b.y] = a;
+        Vector2 startA = a.transform.position;
+        Vector2 startB = b.transform.position;
 
-        (a.x, b.x) = (b.x, a.x);
-        (a.y, b.y) = (b.y, a.y);
+        float time = 0f;
 
-        Vector3 temp = a.transform.position;
-        a.transform.position = b.transform.position;
-        b.transform.position = temp;
+        while (time < swapDuration)
+        {
+            float t = time / swapDuration;
+
+            // smoothstep (очень приятное движение)
+            float eased = t * t * (3f - 2f * t);
+
+            if (a != null)
+                a.transform.position = Vector2.Lerp(startA, startB, eased);
+
+            if (b != null)
+                b.transform.position = Vector2.Lerp(startB, startA, eased);
+
+            time += Time.deltaTime;
+            yield return null;
+        }
+
+        if (a != null) a.transform.position = startB;
+        if (b != null) b.transform.position = startA;
     }
+
 
     IEnumerator Resolve()
     {
+        if (cameraShake != null)
+            cameraShake.Shake();
+
         while (true)
         {
             var matches = FindMatches();
             if (matches.Count == 0)
                 break;
 
-            DestroyMatches(matches);
+            yield return DestroyMatches(matches);
             yield return new WaitForSeconds(0.1f);
             yield return ApplyGravity();
             yield return Fill();
+
+
+            if (matches.Count > 0 && cameraShake != null)
+            {
+                float intensity = Mathf.Clamp(matches.Count / 3f, 0.2f, 2f);
+                cameraShake.ShakeScaled(intensity);
+            }
+
         }
+
+
     }
 
     List<Gem> FindMatches()
@@ -208,16 +260,36 @@ public class Match3Board : MonoBehaviour
         return new List<Gem>(result);
     }
 
-    void DestroyMatches(List<Gem> matches)
+    IEnumerator DestroyMatches(List<Gem> matches)
     {
+        List<Gem> valid = new List<Gem>();
+
         foreach (Gem g in matches)
         {
             if (g == null) continue;
 
             grid[g.x, g.y] = null;
-            Destroy(g.gameObject);
+            valid.Add(g);
+        }
+
+        // проигрываем анимацию
+        foreach (Gem g in valid)
+        {
+            if (g != null)
+                StartCoroutine(g.PlayDestroy());
+        }
+
+        yield return new WaitForSeconds(0.15f);
+
+        foreach (Gem g in valid)
+        {
+            if (g != null)
+                Destroy(g.gameObject);
         }
     }
+
+
+
 
     IEnumerator ApplyGravity()
     {

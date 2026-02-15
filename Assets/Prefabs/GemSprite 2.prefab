@@ -105,9 +105,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3b331205008a22a4786774a50e40d68d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Gem
-  gridX: 0
-  gridY: 0
-  gemType: 0
+  x: 0
+  y: 0
+  type: 0
+  special: 0
+  squashAmount: 0.12
+  squashDuration: 0.08
+  destroyDuration: 0.15
+  destroyScale: 1.2
 --- !u!61 &-3674397116706971553
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -146,7 +151,7 @@ BoxCollider2D:
   m_SpriteTilingProperty:
     border: {x: 0, y: 0, z: 0, w: 0}
     pivot: {x: 0.5, y: 0.5}
-    oldSize: {x: 5.12, y: 5.12}
+    oldSize: {x: 1, y: 1}
     newSize: {x: 1, y: 1}
     adaptiveTilingThreshold: 0.5
     drawMode: 0
