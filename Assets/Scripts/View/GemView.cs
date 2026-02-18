@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.EventSystems;
 using System;
 using System.Collections;
@@ -11,6 +11,10 @@ namespace Match3.View
         public int Y { get; private set; }
 
         public event Action<GemView, Vector2Int> OnSwipe;
+        public event Action<GemView> OnDoubleTap;
+
+        [SerializeField] private float doubleTapTime = 0.28f; // окно двойного тапа (сек)
+        private float lastTapTime = -10f;
 
         Vector2 startTouch;
 
@@ -36,9 +40,26 @@ namespace Match3.View
             else
                 dir = delta.y > 40 ? Vector2Int.up : (delta.y < -40 ? Vector2Int.down : Vector2Int.zero);
 
+            // ✅ если это свайп — работаем как раньше
             if (dir != Vector2Int.zero)
+            {
                 OnSwipe?.Invoke(this, dir);
+                return;
+            }
+
+            // ✅ если не свайп — это TAP
+            float now = Time.unscaledTime;
+            if (now - lastTapTime <= doubleTapTime)
+            {
+                lastTapTime = -10f; // сброс, чтобы не триггерилось цепочкой
+                OnDoubleTap?.Invoke(this);
+            }
+            else
+            {
+                lastTapTime = now;
+            }
         }
+
 
         public IEnumerator PlayDestroy(float duration = 0.15f, float scaleMul = 1.2f)
         {

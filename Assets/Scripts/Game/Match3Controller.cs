@@ -90,6 +90,8 @@ namespace Match3.Game
             var view = go.GetComponent<GemView>();
             view.Bind(x, y);
             view.OnSwipe += OnGemSwipe;
+            view.OnDoubleTap += OnGemDoubleTap;
+
 
             var id = go.GetComponent<GemIdView>();
             if (id != null)
@@ -181,6 +183,95 @@ namespace Match3.Game
             if (boardView != null && moving.Count > 0)
                 yield return boardView.AnimateMoves(moving, targetPos);
         }
+
+        private void OnGemDoubleTap(GemView v)
+        {
+            if (busy) return;
+
+            int x = v.X;
+            int y = v.Y;
+
+            var p = model.Get(x, y);
+            if (!p.HasValue) return;
+
+            // ✅ взрываем только спец-гемы/бомбы
+            if (p.Value.special == SpecialType.None) return;
+
+            StartCoroutine(DetonateAtCell(x, y));
+        }
+        private IEnumerator DetonateAtCell(int x, int y)
+        {
+            busy = true;
+
+            var toDestroy = new HashSet<Vector2Int> { new Vector2Int(x, y) };
+
+            // расширяем область по special (цепочки тоже сработают)
+            ExpandSpecials(toDestroy);
+
+            int destroyed = 0;
+
+            foreach (var c in toDestroy)
+            {
+                model.Set(c.x, c.y, null);
+
+                var view = views[c.x, c.y];
+                views[c.x, c.y] = null;
+
+                if (view != null)
+                    StartCoroutine(DestroyViewRoutine(view));
+
+                destroyed++;
+            }
+
+            score += destroyed * pointsPerGem;
+            OnScoreChanged?.Invoke(score);
+
+            yield return new WaitForSeconds(0.18f);
+
+            // потом стандартная гравитация/спавн/анимация через ваш ResolveLoop
+            GravitySolver.Apply(model, out var moves, out var spawnCells);
+
+            var moving = new List<GemView>();
+            var targetPos = new Dictionary<GemView, Vector2>();
+
+            foreach (var m in moves)
+            {
+                var v = views[m.from.x, m.from.y];
+                views[m.from.x, m.from.y] = null;
+                views[m.to.x, m.to.y] = v;
+
+                if (v != null)
+                {
+                    v.SetCoords(m.to.x, m.to.y);
+                    moving.Add(v);
+                    targetPos[v] = boardView.CellToWorld(m.to.x, m.to.y);
+                }
+            }
+
+            foreach (var c in spawnCells)
+            {
+                int type = RefillSolver.GetSafeType(model, c.x, c.y, gemPrefabs.Length);
+                model.Set(c.x, c.y, new Piece(type));
+
+                SpawnViewAtCell(c.x, c.y, type, spawnFromAbove: true);
+
+                var v = views[c.x, c.y];
+                if (v != null)
+                {
+                    moving.Add(v);
+                    targetPos[v] = boardView.CellToWorld(c.x, c.y);
+                }
+            }
+
+            if (boardView != null && moving.Count > 0)
+                yield return boardView.AnimateMoves(moving, targetPos);
+
+            // дочищаем возможные каскады от падения
+            yield return ResolveLoop();
+
+            busy = false;
+        }
+
 
 
         IEnumerator SwapAndResolve(int ax, int ay, int bx, int by)
@@ -282,6 +373,8 @@ namespace Match3.Game
             var view = go.GetComponent<GemView>();
             view.Bind(x, y);
             view.OnSwipe += OnGemSwipe;
+            view.OnDoubleTap += OnGemDoubleTap;
+
             views[x, y] = view;
 
             // пометить как бомбу (чисто для будущего)
@@ -381,36 +474,74 @@ namespace Match3.Game
                 switch (sp)
                 {
                     case SpecialType.Bomb4:
-                        // 3x3
-                        for (int dx = -1; dx <= 1; dx++)
-                            for (int dy = -1; dy <= 1; dy++)
-                                AddIfInBounds(extra, c.x + dx, c.y + dy);
-                        break;
+                        {
+                            // крест: центр + 4 соседа
+                            AddIfInBounds(extra, c.x, c.y);
+                            AddIfInBounds(extra, c.x + 1, c.y);
+                            AddIfInBounds(extra, c.x - 1, c.y);
+                            AddIfInBounds(extra, c.x, c.y + 1);
+                            AddIfInBounds(extra, c.x, c.y - 1);
+                            break;
+                        }
+
 
                     case SpecialType.Bomb5:
-                        // крест: ряд + колонка
-                        for (int x = 0; x < width; x++) AddIfInBounds(extra, x, c.y);
-                        for (int y = 0; y < height; y++) AddIfInBounds(extra, c.x, y);
-                        break;
+                        {
+                            // 5x5 без четырёх углов
+                            for (int dx = -2; dx <= 2; dx++)
+                            {
+                                for (int dy = -2; dy <= 2; dy++)
+                                {
+                                    // пропускаем углы
+                                    if (Mathf.Abs(dx) == 2 && Mathf.Abs(dy) == 2)
+                                        continue;
+
+                                    AddIfInBounds(extra, c.x + dx, c.y + dy);
+                                }
+                            }
+                            break;
+                        }
+
 
                     case SpecialType.Bomb6:
-                        // 5x5
-                        for (int dx = -2; dx <= 2; dx++)
-                            for (int dy = -2; dy <= 2; dy++)
-                                AddIfInBounds(extra, c.x + dx, c.y + dy);
-                        break;
+                        {
+                            // 7x7 “октагон”: 3/5/7/7/7/5/3 (как на рисунке)
+                            for (int dx = -3; dx <= 3; dx++)
+                            {
+                                for (int dy = -3; dy <= 3; dy++)
+                                {
+                                    int ax = Mathf.Abs(dx);
+                                    int ay = Mathf.Abs(dy);
+
+                                    // условие октагона:
+                                    // 1) не выходим за 3 по каждой оси
+                                    // 2) срезаем углы: |dx| + |dy| <= 4
+                                    if (ax <= 3 && ay <= 3 && (ax + ay) <= 4)
+                                        AddIfInBounds(extra, c.x + dx, c.y + dy);
+                                }
+                            }
+                            break;
+                        }
+
 
                     case SpecialType.Bomb7:
-                        // “цветовая”: удалить все гемы цвета этой бомбы
-                        int targetType = p.Value.type;
-                        for (int x = 0; x < width; x++)
-                            for (int y = 0; y < height; y++)
+                        {
+                            // 9x9 “октагон”: 5/7/9/9/9/9/9/7/5 (как на рисунке)
+                            for (int dx = -4; dx <= 4; dx++)
                             {
-                                var pp = model.Get(x, y);
-                                if (pp.HasValue && pp.Value.type == targetType)
-                                    extra.Add(new Vector2Int(x, y));
+                                for (int dy = -4; dy <= 4; dy++)
+                                {
+                                    int ax = Mathf.Abs(dx);
+                                    int ay = Mathf.Abs(dy);
+
+                                    // срез углов
+                                    if (ax <= 4 && ay <= 4 && (ax + ay) <= 6)
+                                        AddIfInBounds(extra, c.x + dx, c.y + dy);
+                                }
                             }
-                        break;
+                            break;
+                        }
+
                 }
 
                 foreach (var e in extra)
