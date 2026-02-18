@@ -710,6 +710,10 @@ MonoBehaviour:
   boardView: {fileID: 489549103}
   maxMoves: 20
   pointsPerGem: 10
+  bomb4Prefab: {fileID: 1792777962339280521, guid: 0c69e92a8818c9a40a6eeecca7928b90, type: 3}
+  bomb5Prefab: {fileID: 9079101336409404643, guid: 8aac3a76dc354b94ca3e40a822b49b87, type: 3}
+  bomb6Prefab: {fileID: 196820791954759821, guid: 07edf6404a0984043ba77826488bad14, type: 3}
+  bomb7Prefab: {fileID: 6502733586235913193, guid: 5c6813ab4931b9641a8d13c0175fd180, type: 3}
 --- !u!4 &626179768
 Transform:
   m_ObjectHideFlags: 0
