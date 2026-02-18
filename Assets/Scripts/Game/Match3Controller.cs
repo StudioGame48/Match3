@@ -1,9 +1,11 @@
+п»їusing Match3.Core;
+using Match3.View;
+using Match3.ViewLayer;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using Match3.Core;
-using Match3.View;
-using Match3.ViewLayer;
+using UnityEngine.SocialPlatforms.Impl;
+
 
 namespace Match3.Game
 {
@@ -20,21 +22,41 @@ namespace Match3.Game
         [Header("Links")]
         public BoardView boardView;
 
-        BoardModel model;
-        GemView[,] views;
+        private BoardModel model;
+        private GemView[,] views;
 
-        bool busy;
+        [Header("Rules")]
+        public int maxMoves = 20;
+        [SerializeField] private int pointsPerGem = 10;
+
+        private int movesLeft;
+        private int score;
+
+        public System.Action<int> OnMovesChanged;
+        public System.Action<int> OnScoreChanged;
+        public System.Action OnGameOver;
+
+        private bool busy;
+
+
+
 
         void Start()
         {
             model = new BoardModel(width, height);
             views = new GemView[width, height];
+            movesLeft = maxMoves;
+            OnMovesChanged?.Invoke(movesLeft);
+            score = 0;
+            movesLeft = maxMoves;
+            PushUIState();
+
 
             if (boardView == null)
                 boardView = FindFirstObjectByType<BoardView>();
 
             GenerateNoMatches();
-            StartCoroutine(ResolveLoop()); // чистим случайные стартовые совпадения
+            StartCoroutine(ResolveLoop()); // С‡РёСЃС‚РёРј СЃР»СѓС‡Р°Р№РЅС‹Рµ СЃС‚Р°СЂС‚РѕРІС‹Рµ СЃРѕРІРїР°РґРµРЅРёСЏ
         }
 
         void GenerateNoMatches()
@@ -48,11 +70,17 @@ namespace Match3.Game
                 }
         }
 
+        public void PushUIState()
+        {
+            OnScoreChanged?.Invoke(score);
+            OnMovesChanged?.Invoke(movesLeft);
+        }
+
         void SpawnViewAtCell(int x, int y, int type, bool spawnFromAbove)
         {
             Vector2 pos = boardView.CellToWorld(x, y);
             if (spawnFromAbove)
-                pos = boardView.CellToWorld(x, height) + Vector2.up * boardView.cellSize; // чуть выше
+                pos = boardView.CellToWorld(x, height) + Vector2.up * boardView.cellSize; // С‡СѓС‚СЊ РІС‹С€Рµ
 
             var go = Instantiate(gemPrefabs[type], pos, Quaternion.identity, gridParent);
 
@@ -84,7 +112,12 @@ namespace Match3.Game
             var aView = views[ax, ay];
             var bView = views[bx, by];
 
-            // анимация свапа
+            // ... РїРѕСЃР»Рµ РїСЂРѕРІРµСЂРєРё matches.Count == 0 (РєРѕРіРґР° РѕС‚РєР°С‚РёР»Рё) РїСЂРѕСЃС‚Рѕ РІС‹С…РѕРґРёРј
+            movesLeft--;
+            OnMovesChanged?.Invoke(movesLeft);
+            if (movesLeft <= 0) { OnGameOver?.Invoke(); busy = true; yield break; }
+
+            // Р°РЅРёРјР°С†РёСЏ СЃРІР°РїР°
             if (boardView != null && aView != null && bView != null)
                 yield return boardView.AnimateSwap(aView, bView);
 
@@ -125,10 +158,15 @@ namespace Match3.Game
                 var matches = MatchFinder.FindMatches(model);
                 if (matches.Count == 0) yield break;
 
+                // вњ… SCORE вЂ” Р”Рћ СѓРЅРёС‡С‚РѕР¶РµРЅРёСЏ
+                int gained = matches.Count * pointsPerGem;
+
+                score += gained;
+                OnScoreChanged?.Invoke(score);
+
                 // 1) destroy matched (model + view)
                 var destroyed = new List<GemView>(matches.Count);
 
-                // 1) destroy matched (model + view)
                 foreach (var c in matches)
                 {
                     model.Set(c.x, c.y, null);
@@ -142,16 +180,13 @@ namespace Match3.Game
 
                 yield return new WaitForSeconds(0.18f);
 
-
                 // 2) gravity in model
                 GravitySolver.Apply(model, out var moves, out var spawnCells);
 
-                // 3) apply moves to views array (без анимации пока)
+                // 3) apply moves to views array (Р±РµР· Р°РЅРёРјР°С†РёРё РїРѕРєР°)
                 var moving = new List<GemView>();
                 var targetPos = new Dictionary<GemView, Vector2>();
 
-                // переносим ссылки views так же, как модель
-                // делаем снизу вверх безопасно через временный список
                 foreach (var m in moves)
                 {
                     var v = views[m.from.x, m.from.y];
@@ -166,7 +201,7 @@ namespace Match3.Game
                     }
                 }
 
-                // 4) spawn новых сверху + добавить в moving для падения
+                // 4) spawn РЅРѕРІС‹С… СЃРІРµСЂС…Сѓ + РґРѕР±Р°РІРёС‚СЊ РІ moving РґР»СЏ РїР°РґРµРЅРёСЏ
                 foreach (var c in spawnCells)
                 {
                     int type = RefillSolver.GetSafeType(model, c.x, c.y, gemPrefabs.Length);
@@ -188,14 +223,15 @@ namespace Match3.Game
             }
         }
 
+
         IEnumerator DestroyViewRoutine(GemView v)
         {
-            // если кто-то уже удалил
+            // РµСЃР»Рё РєС‚Рѕ-С‚Рѕ СѓР¶Рµ СѓРґР°Р»РёР»
             if (v == null) yield break;
 
             yield return v.PlayDestroy();
 
-            // мог быть уничтожен во время анимации
+            // РјРѕРі Р±С‹С‚СЊ СѓРЅРёС‡С‚РѕР¶РµРЅ РІРѕ РІСЂРµРјСЏ Р°РЅРёРјР°С†РёРё
             if (v != null)
                 Destroy(v.gameObject);
         }
