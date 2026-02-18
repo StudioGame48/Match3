@@ -1,7 +1,15 @@
 namespace Match3.Core
 {
-    public enum SpecialType { None, LineHorizontal, LineVertical, Bomb }
-
+    public enum SpecialType
+    {
+        None,
+        LineHorizontal,
+        LineVertical,
+        Bomb4,
+        Bomb5,
+        Bomb6,
+        Bomb7
+    }
     public readonly struct Cell
     {
         public readonly int x, y;

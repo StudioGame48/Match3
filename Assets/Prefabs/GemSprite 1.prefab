@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 2103117989333994163}
   - component: {fileID: 7958537209106368990}
   - component: {fileID: 7608239017430071666}
+  - component: {fileID: -7491481325684512282}
   m_Layer: 0
   m_Name: GemSprite 1
   m_TagString: Untagged
@@ -88,7 +89,7 @@ SpriteRenderer:
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
-  m_Size: {x: 1, y: 1}
+  m_Size: {x: 2.234375, y: 2.0625}
   m_AdaptiveModeThreshold: 0.5
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
@@ -132,7 +133,7 @@ BoxCollider2D:
     border: {x: 0, y: 0, z: 0, w: 0}
     pivot: {x: 0.5, y: 0.5}
     oldSize: {x: 2.234375, y: 2.0625}
-    newSize: {x: 1, y: 1}
+    newSize: {x: 2.234375, y: 2.0625}
     adaptiveTilingThreshold: 0.5
     drawMode: 0
     adaptiveTiling: 0
@@ -151,3 +152,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: dbafae2e4e3533e448905b815e8e00dd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Match3.View.GemView
+--- !u!114 &-7491481325684512282
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6483164389044409118}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 909388adfb9801f4495ae6fa9e056282, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Match3.View.GemIdView
+  ColorType: 0
+  Special: 0

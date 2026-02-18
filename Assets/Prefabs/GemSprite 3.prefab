@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 2103117989333994163}
   - component: {fileID: 8082008623562024522}
   - component: {fileID: -2474459022179607806}
+  - component: {fileID: 7592900789654199595}
   m_Layer: 0
   m_Name: GemSprite 3
   m_TagString: Untagged
@@ -151,3 +152,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: dbafae2e4e3533e448905b815e8e00dd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Match3.View.GemView
+--- !u!114 &7592900789654199595
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6483164389044409118}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 909388adfb9801f4495ae6fa9e056282, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Match3.View.GemIdView
+  ColorType: 0
+  Special: 0
