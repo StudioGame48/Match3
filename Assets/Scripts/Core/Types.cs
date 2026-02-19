@@ -5,11 +5,10 @@ namespace Match3.Core
         None,
         LineHorizontal,
         LineVertical,
-        Bomb4,
-        Bomb5,
-        Bomb6,
-        Bomb7
+        Bomb4, Bomb5, Bomb6, Bomb7,
+        Cart
     }
+
     public readonly struct Cell
     {
         public readonly int x, y;

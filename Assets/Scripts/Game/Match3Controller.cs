@@ -41,6 +41,14 @@ namespace Match3.Game
         [SerializeField] private GameObject bomb5Prefab;
         [SerializeField] private GameObject bomb6Prefab;
         [SerializeField] private GameObject bomb7Prefab;
+        [SerializeField] private GameObject cartPrefab;
+        [Header("Cart Meter")]
+        [SerializeField] private int cartChargeMax = 100;
+        [SerializeField] private int cartCharge = 0;
+
+        public System.Action<float> OnCartMeterChanged; // 0..1
+
+
 
         // запоминаем последний свап (чтобы ставить бомбу в “ход игрока”)
         private Vector2Int lastSwapA;
@@ -60,6 +68,8 @@ namespace Match3.Game
 
             GenerateNoMatches();
             StartCoroutine(ResolveLoop()); // чистим случайные стартовые совпадения
+            OnCartMeterChanged?.Invoke((float)cartCharge / cartChargeMax);
+
         }
 
         public void PushUIState()
@@ -132,13 +142,33 @@ namespace Match3.Game
             // расширяем область взрыва
             ExpandSpecials(start);
 
-            // уничтожаем всё из start (включая сами бомбы)
-            foreach (var p in start)
+            // ✅ Вариант A: суммируем заряд по всем спецам, которые детонируют
+            int add = 0;
+            foreach (var cell in start)
             {
-                model.Set(p.x, p.y, null);
+                var piece = model.Get(cell.x, cell.y);
+                if (!piece.HasValue) continue;
 
-                var v = views[p.x, p.y];
-                views[p.x, p.y] = null;
+                add += piece.Value.special switch
+                {
+                    SpecialType.Bomb4 => 12,
+                    SpecialType.Bomb5 => 20,
+                    SpecialType.Bomb6 => 32,
+                    SpecialType.Bomb7 => 45,
+                    _ => 0
+                };
+            }
+            AddCartCharge(add);
+
+
+            // уничтожаем всё из start (включая сами бомбы)
+            foreach (var cell in start)
+            {
+                model.Set(cell.x, cell.y, null);
+
+                var v = views[cell.x, cell.y];
+                views[cell.x, cell.y] = null;
+
 
                 if (v != null)
                     StartCoroutine(DestroyViewRoutine(v));
@@ -184,6 +214,23 @@ namespace Match3.Game
                 yield return boardView.AnimateMoves(moving, targetPos);
         }
 
+        private void AddCartCharge(int amount)
+        {
+            if (amount <= 0) return;
+
+            cartCharge += amount;
+
+            // 🔥 если переполнилась — спавним тележку и сохраняем остаток
+            while (cartCharge >= cartChargeMax)
+            {
+                cartCharge -= cartChargeMax;
+                SpawnCartRandom();
+            }
+
+            OnCartMeterChanged?.Invoke((float)cartCharge / cartChargeMax);
+        }
+
+
         private void OnGemDoubleTap(GemView v)
         {
             if (busy) return;
@@ -191,14 +238,166 @@ namespace Match3.Game
             int x = v.X;
             int y = v.Y;
 
-            var p = model.Get(x, y);
-            if (!p.HasValue) return;
+            var piece = model.Get(x, y);
+            if (!piece.HasValue) return;
 
-            // ✅ взрываем только спец-гемы/бомбы
-            if (p.Value.special == SpecialType.None) return;
+            // ✅ если это тележка — удаляем случайный цвет
+            if (piece.Value.special == SpecialType.Cart)
+            {
+                StartCoroutine(ActivateCartRandomAt(x, y));
+                return;
+            }
 
+            // ✅ если это обычная фишка — ничего
+            if (piece.Value.special == SpecialType.None)
+                return;
+
+            // ✅ иначе это бомба/спец — взрываем
             StartCoroutine(DetonateAtCell(x, y));
         }
+
+
+
+        private void SpawnCartRandom()
+        {
+            var candidates = new List<Vector2Int>();
+
+            for (int x = 0; x < width; x++)
+                for (int y = 0; y < height; y++)
+                {
+                    var p = model.Get(x, y);
+                    if (!p.HasValue) continue;
+                    if (p.Value.special != SpecialType.None) continue; // не поверх спецов
+
+                    candidates.Add(new Vector2Int(x, y));
+                }
+
+            if (candidates.Count == 0) return;
+
+            var c = candidates[Random.Range(0, candidates.Count)];
+
+            // модель: сохраняем type, добавляем special Cart
+            var old = model.Get(c.x, c.y).Value;
+            model.Set(c.x, c.y, new Piece(old.type, SpecialType.Cart));
+
+            // view: заменить объект в клетке на cart prefab
+            var oldView = views[c.x, c.y];
+            if (oldView != null) Destroy(oldView.gameObject);
+
+            var pos = boardView.CellToWorld(c.x, c.y);
+            var go = Instantiate(cartPrefab, pos, Quaternion.identity, gridParent);
+
+            var view = go.GetComponent<GemView>();
+            view.Bind(c.x, c.y);
+            view.OnSwipe += OnGemSwipe;
+            view.OnDoubleTap += OnGemDoubleTap; // важно!
+            views[c.x, c.y] = view;
+        }
+
+        private IEnumerator ActivateCartAt(int cartX, int cartY, int targetType)
+        {
+            busy = true;
+
+            var toDestroy = new HashSet<Vector2Int>();
+
+            // все фишки выбранного цвета
+            for (int x = 0; x < width; x++)
+                for (int y = 0; y < height; y++)
+                {
+                    var p = model.Get(x, y);
+                    if (p.HasValue && p.Value.type == targetType)
+                        toDestroy.Add(new Vector2Int(x, y));
+                }
+
+            // тележка тоже исчезает
+            toDestroy.Add(new Vector2Int(cartX, cartY));
+
+            int destroyed = 0;
+
+            foreach (var c in toDestroy)
+            {
+                model.Set(c.x, c.y, null);
+
+                var view = views[c.x, c.y];
+                views[c.x, c.y] = null;
+
+                if (view != null)
+                    StartCoroutine(DestroyViewRoutine(view));
+
+                destroyed++;
+            }
+
+            score += destroyed * pointsPerGem;
+            OnScoreChanged?.Invoke(score);
+
+            yield return new WaitForSeconds(0.18f);
+
+            // гравитация + спавн + анимация + каскады
+            GravitySolver.Apply(model, out var moves, out var spawnCells);
+
+            var moving = new List<GemView>();
+            var targetPos = new Dictionary<GemView, Vector2>();
+
+            foreach (var m in moves)
+            {
+                var v = views[m.from.x, m.from.y];
+                views[m.from.x, m.from.y] = null;
+                views[m.to.x, m.to.y] = v;
+
+                if (v != null)
+                {
+                    v.SetCoords(m.to.x, m.to.y);
+                    moving.Add(v);
+                    targetPos[v] = boardView.CellToWorld(m.to.x, m.to.y);
+                }
+            }
+
+            foreach (var c in spawnCells)
+            {
+                int type = RefillSolver.GetSafeType(model, c.x, c.y, gemPrefabs.Length);
+                model.Set(c.x, c.y, new Piece(type));
+
+                SpawnViewAtCell(c.x, c.y, type, spawnFromAbove: true);
+
+                var v = views[c.x, c.y];
+                if (v != null)
+                {
+                    moving.Add(v);
+                    targetPos[v] = boardView.CellToWorld(c.x, c.y);
+                }
+            }
+
+            if (boardView != null && moving.Count > 0)
+                yield return boardView.AnimateMoves(moving, targetPos);
+
+            yield return ResolveLoop();
+            busy = false;
+        }
+
+        private IEnumerator ActivateCartRandomAt(int cartX, int cartY)
+        {
+            // собрать список типов, которые реально есть на поле (обычные фишки)
+            var present = new List<int>();
+            var seen = new HashSet<int>();
+
+            for (int x = 0; x < width; x++)
+                for (int y = 0; y < height; y++)
+                {
+                    var p = model.Get(x, y);
+                    if (!p.HasValue) continue;
+                    if (p.Value.special != SpecialType.None) continue; // не выбираем по спецам
+
+                    int t = p.Value.type;
+                    if (seen.Add(t)) present.Add(t);
+                }
+
+            if (present.Count == 0) yield break;
+
+            int targetType = present[Random.Range(0, present.Count)];
+            yield return ActivateCartAt(cartX, cartY, targetType);
+        }
+
+
         private IEnumerator DetonateAtCell(int x, int y)
         {
             busy = true;
@@ -207,6 +406,21 @@ namespace Match3.Game
 
             // расширяем область по special (цепочки тоже сработают)
             ExpandSpecials(toDestroy);
+            // ✅ начисляем заряд по типу бомбы (Вариант A)
+            var piece = model.Get(x, y);
+            if (piece.HasValue)
+            {
+                int add = piece.Value.special switch
+                {
+                    SpecialType.Bomb4 => 12,
+                    SpecialType.Bomb5 => 20,
+                    SpecialType.Bomb6 => 32,
+                    SpecialType.Bomb7 => 45,
+                    _ => 0
+                };
+
+                AddCartCharge(add);
+            }
 
             int destroyed = 0;
 
@@ -302,6 +516,26 @@ namespace Match3.Game
             (views[ax, ay], views[bx, by]) = (views[bx, by], views[ax, ay]);
             views[ax, ay].SetCoords(ax, ay);
             views[bx, by].SetCoords(bx, by);
+
+            // ✅ CART SWAP: если тележка участвует в свапе — активируем сразу
+            if (IsCartAt(ax, ay) || IsCartAt(bx, by))
+            {
+                // определяем где тележка, а где обычная фишка
+                int cartX, cartY, otherX, otherY;
+
+                if (IsCartAt(ax, ay)) { cartX = ax; cartY = ay; otherX = bx; otherY = by; }
+                else { cartX = bx; cartY = by; otherX = ax; otherY = ay; }
+
+                var otherPiece = model.Get(otherX, otherY);
+                // если вдруг рядом тоже спец — не активируем (можно расширить потом)
+                if (otherPiece.HasValue && otherPiece.Value.special == SpecialType.None)
+                {
+                    int targetType = otherPiece.Value.type;
+                    yield return ActivateCartAt(cartX, cartY, targetType);
+                    busy = false;
+                    yield break;
+                }
+            }
 
             // ✅ если после свапа на одной из позиций стоит спец — активируем сразу
             var pa = model.Get(ax, ay);
@@ -408,7 +642,8 @@ namespace Match3.Game
         private List<List<Vector2Int>> BuildMatchGroups(List<Match3.Core.Cell> cells)
         {
             var set = new HashSet<Vector2Int>();
-            foreach (var c in cells) set.Add(new Vector2Int(c.x, c.y));
+            foreach (var c in cells)
+                set.Add(new Vector2Int(c.x, c.y));
 
             var groups = new List<List<Vector2Int>>();
             var used = new HashSet<Vector2Int>();
@@ -417,25 +652,46 @@ namespace Match3.Game
             {
                 if (used.Contains(start)) continue;
 
+                var piece = model.Get(start.x, start.y);
+                if (!piece.HasValue)
+                {
+                    used.Add(start);
+                    continue;
+                }
+
+                int startType = piece.Value.type;
+
                 var group = new List<Vector2Int>();
-                var q = new Queue<Vector2Int>();
-                q.Enqueue(start);
+                var queue = new Queue<Vector2Int>();
+                queue.Enqueue(start);
                 used.Add(start);
 
-                while (q.Count > 0)
+                while (queue.Count > 0)
                 {
-                    var p = q.Dequeue();
+                    var p = queue.Dequeue();
                     group.Add(p);
 
-                    var n = new[]
+                    var neighbors = new[]
                     {
-                        p + Vector2Int.right, p + Vector2Int.left,
-                        p + Vector2Int.up,    p + Vector2Int.down
-                    };
+                p + Vector2Int.right,
+                p + Vector2Int.left,
+                p + Vector2Int.up,
+                p + Vector2Int.down
+            };
 
-                    foreach (var nb in n)
-                        if (set.Contains(nb) && !used.Contains(nb))
-                        { used.Add(nb); q.Enqueue(nb); }
+                    foreach (var n in neighbors)
+                    {
+                        if (!set.Contains(n) || used.Contains(n)) continue;
+
+                        var np = model.Get(n.x, n.y);
+                        if (!np.HasValue) continue;
+
+                        // ✅ ВАЖНО: только одинаковый тип
+                        if (np.Value.type != startType) continue;
+
+                        used.Add(n);
+                        queue.Enqueue(n);
+                    }
                 }
 
                 groups.Add(group);
@@ -443,6 +699,7 @@ namespace Match3.Game
 
             return groups;
         }
+
 
         private static readonly Vector2Int[] Neigh4 =
 {
@@ -550,7 +807,11 @@ namespace Match3.Game
             }
         }
 
-
+        private bool IsCartAt(int x, int y)
+        {
+            var p = model.Get(x, y);
+            return p.HasValue && p.Value.special == SpecialType.Cart;
+        }
 
         IEnumerator ResolveLoop()
         {
@@ -649,7 +910,6 @@ namespace Match3.Game
                     yield return boardView.AnimateMoves(moving, targetPos);
             }
         }
-
 
         IEnumerator DestroyViewRoutine(GemView v)
         {

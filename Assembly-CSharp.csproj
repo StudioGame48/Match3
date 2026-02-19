@@ -94,6 +94,7 @@
     <Compile Include="Assets\Scripts\View\GemIdView.cs" />
     <Compile Include="Assets\TextMesh Pro\Examples &amp; Extras\Scripts\TextMeshProFloatingText.cs" />
     <Compile Include="Assets\Scripts\Core\Match3HUD.cs" />
+    <Compile Include="Assets\Scripts\Core\CartMeterUI.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Assets\TextMesh Pro\Shaders\TMPro.cginc" />
