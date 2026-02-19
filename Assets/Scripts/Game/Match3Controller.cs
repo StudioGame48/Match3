@@ -43,7 +43,7 @@ namespace Match3.Game
         [SerializeField] private GameObject bomb7Prefab;
         [SerializeField] private GameObject cartPrefab;
         [Header("Cart Meter")]
-        [SerializeField] private int cartChargeMax = 100;
+        [SerializeField] private int cartChargeMax = 50;
         [SerializeField] private int cartCharge = 0;
 
         public System.Action<float> OnCartMeterChanged; // 0..1
@@ -164,15 +164,19 @@ namespace Match3.Game
             // уничтожаем всё из start (включая сами бомбы)
             foreach (var cell in start)
             {
+                var cellPiece = model.Get(cell.x, cell.y);
+                if (cellPiece.HasValue && cellPiece.Value.special == SpecialType.Cart)
+                    continue; // ✅ тележка не умирает от спец-взрывов после свапа
+
                 model.Set(cell.x, cell.y, null);
 
                 var v = views[cell.x, cell.y];
                 views[cell.x, cell.y] = null;
 
-
                 if (v != null)
                     StartCoroutine(DestroyViewRoutine(v));
             }
+
 
             yield return new WaitForSeconds(0.18f);
 
@@ -850,21 +854,24 @@ namespace Match3.Game
                     ExpandSpecials(toDestroy);
 
                     // 4) Уничтожаем ВСЁ из toDestroy
-                    foreach (var p in toDestroy)
+                    foreach (var c in toDestroy)
                     {
-                        // могли попасть в pivot через спец-расширение — если хотите “бомба не самоуничтожается”, оставьте так:
-                        if (makeBomb && p == pivot) continue;
+                        var cellPiece = model.Get(c.x, c.y);
+                        if (cellPiece.HasValue && cellPiece.Value.special == SpecialType.Cart)
+                            continue; // ✅ тележка не умирает от бомб
 
-                        model.Set(p.x, p.y, null);
+                        model.Set(c.x, c.y, null);
 
-                        var v = views[p.x, p.y];
-                        views[p.x, p.y] = null;
+                        var view = views[c.x, c.y];
+                        views[c.x, c.y] = null;
 
-                        if (v != null)
-                            StartCoroutine(DestroyViewRoutine(v));
+                        if (view != null)
+                            StartCoroutine(DestroyViewRoutine(view));
 
                         destroyed++;
                     }
+
+
                 }
 
                 score += destroyed * pointsPerGem;

@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
 namespace Match3.Core
 {
@@ -14,6 +14,9 @@ namespace Match3.Core
                     var p = board.Get(x, y);
                     if (p == null) continue;
 
+                    // ✅ спецки НЕ участвуют в матчах
+                    if (p.Value.special != SpecialType.None) continue;
+
                     int type = p.Value.type;
 
                     // horizontal
@@ -21,7 +24,11 @@ namespace Match3.Core
                     {
                         var p1 = board.Get(x + 1, y);
                         var p2 = board.Get(x + 2, y);
-                        if (p1 != null && p2 != null && p1.Value.type == type && p2.Value.type == type)
+
+                        if (p1 != null && p2 != null &&
+                            p1.Value.special == SpecialType.None &&
+                            p2.Value.special == SpecialType.None &&
+                            p1.Value.type == type && p2.Value.type == type)
                         {
                             result.Add((x, y));
                             result.Add((x + 1, y));
@@ -34,7 +41,11 @@ namespace Match3.Core
                     {
                         var p1 = board.Get(x, y + 1);
                         var p2 = board.Get(x, y + 2);
-                        if (p1 != null && p2 != null && p1.Value.type == type && p2.Value.type == type)
+
+                        if (p1 != null && p2 != null &&
+                            p1.Value.special == SpecialType.None &&
+                            p2.Value.special == SpecialType.None &&
+                            p1.Value.type == type && p2.Value.type == type)
                         {
                             result.Add((x, y));
                             result.Add((x, y + 1));
