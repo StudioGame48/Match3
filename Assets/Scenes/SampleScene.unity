@@ -790,7 +790,7 @@ MonoBehaviour:
   bomb6Prefab: {fileID: 196820791954759821, guid: 07edf6404a0984043ba77826488bad14, type: 3}
   bomb7Prefab: {fileID: 6502733586235913193, guid: 5c6813ab4931b9641a8d13c0175fd180, type: 3}
   cartPrefab: {fileID: 4719745777742723760, guid: b8468ec6e2ec7ad4992f8e9a27abf5c1, type: 3}
-  cartChargeMax: 100
+  cartChargeMax: 50
   cartCharge: 0
 --- !u!4 &626179768
 Transform:
