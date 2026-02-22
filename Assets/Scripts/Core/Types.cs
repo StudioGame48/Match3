@@ -1,4 +1,5 @@
 namespace Match3.Core
+
 {
     public enum SpecialType
     {

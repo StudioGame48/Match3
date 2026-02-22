@@ -7,6 +7,7 @@ using Match3.ViewLayer;
 using System.Collections;
 using UnityEngine;
 
+
 namespace Match3.Game
 {
     public sealed class Match3Controller : MonoBehaviour
@@ -30,8 +31,14 @@ namespace Match3.Game
         [SerializeField] private int pointsPerGem = 10;
 
         public System.Action<int> OnMovesChanged;
+        public event System.Action<int, SpecialType> OnPieceCleared;
+        // int = type (цвет/гем), SpecialType = спец (бомба/тележка/none)
         public System.Action<int> OnScoreChanged;
         public System.Action OnGameOver;
+        public int CurrentScore => scoreMoves?.Score ?? 0;
+        public int CurrentMoves => scoreMoves?.MovesLeft ?? 0;
+        public LevelConfig levelConfig;
+
 
         [Header("Bomb Prefabs (match 4-7+)")]
         [SerializeField] private GameObject bomb4Prefab;
@@ -55,7 +62,7 @@ namespace Match3.Game
         private ViewFactory viewFactory;
         private SwapService swapService;
         private ResolveSystem resolve;
-
+        
         void Start()
         {
             model = new BoardModel(width, height);
@@ -97,14 +104,45 @@ namespace Match3.Game
                 scoreMoves: scoreMoves,
                 cartChargeMax: cartChargeMax,
                 cartChargeStart: cartCharge,
-                onCartMeterChanged: OnCartMeterChanged
+                onCartMeterChanged: OnCartMeterChanged,
+                onPieceCleared: (p) => OnPieceCleared?.Invoke(p.type, p.special),
+                hasCell: HasCell
             );
 
             GenerateNoMatches();
             StartCoroutine(resolve.ResolveLoop(DestroyViewRoutine)); // чистим случайные стартовые совпадения
             resolve.PushCartMeter();
         }
+        private bool HasCell(int x, int y)
+        {
+            // Маски нет — значит обычное прямоугольное поле
+            if (levelConfig == null || levelConfig.maskRows == null || levelConfig.maskRows.Length == 0)
+                return true;
 
+            if (y < 0 || y >= levelConfig.maskRows.Length) return true;
+
+
+            var row = levelConfig.maskRows[y];
+            if (string.IsNullOrEmpty(row)) return true;
+            if (x < 0 || x >= row.Length) return true;
+
+            return row[x] == '1';
+
+        }
+        public void ForceGameOver()
+        {
+            if (busy) return;
+            busy = true;
+            fsm.Set(Match3.Game.State.GameState.GameOver);
+            scoreMoves.TriggerGameOver();
+        }
+
+        public void ApplyLevelTuning(int newPointsPerGem, int newCartMax, int newCartStart)
+        {
+            pointsPerGem = newPointsPerGem;
+            cartChargeMax = newCartMax;
+            cartCharge = newCartStart;
+        }
         public void PushUIState()
         {
             scoreMoves?.PushUIState();
@@ -116,10 +154,26 @@ namespace Match3.Game
             for (int x = 0; x < width; x++)
                 for (int y = 0; y < height; y++)
                 {
+                    // ✅ 1) ПРОПУСКАЕМ клетки, которых нет по маске
+                    if (!HasCell(x, y))
+                    {
+                        model.Set(x, y, null);
+                        views[x, y] = null;
+                        continue;
+                    }
+
+                    // ✅ 2) Создаём гем только если клетка существует
                     int type = RefillSolver.GetSafeType(model, x, y, gemPrefabs.Length);
                     model.Set(x, y, new Piece(type));
 
-                    var view = viewFactory.CreateGem(gemPrefabs[type], x, y, height, spawnFromAbove: false, cellSize: boardView.cellSize);
+                    var view = viewFactory.CreateGem(
+                        gemPrefabs[type],
+                        x, y,
+                        height,
+                        spawnFromAbove: false,
+                        cellSize: boardView.cellSize
+                    );
+
                     views[x, y] = view;
                 }
         }
