@@ -149,10 +149,26 @@ namespace Match3.Game
 
         private IEnumerator DetonateAtCell(int x, int y)
         {
+            // если уже busy — не надо
+            if (busy) yield break;
+
             busy = true;
             fsm.Set(GameState.Resolving);
 
+            // ✅ тратим ход за double tap по бомбе
+            bool gameOverAfter = scoreMoves.ConsumeMove();
+
+            // выполняем действие (анимации/взрыв/каскады)
             yield return resolve.DetonateAtCell(x, y, DestroyViewRoutine);
+
+            // ✅ если после этого ходов стало 0 — завершаем игру
+            if (gameOverAfter)
+            {
+                fsm.Set(GameState.GameOver);
+                scoreMoves.TriggerGameOver();
+                busy = true;
+                yield break;
+            }
 
             fsm.Set(GameState.Input);
             busy = false;
@@ -160,10 +176,25 @@ namespace Match3.Game
 
         private IEnumerator ActivateCartRandomAt(int x, int y)
         {
+            if (busy) yield break;
+
             busy = true;
             fsm.Set(GameState.Resolving);
 
+            // ✅ тратим ход за double tap по тележке
+            bool gameOverAfter = scoreMoves.ConsumeMove();
+
+            // выполняем действие (удаление цвета/падение/каскады)
             yield return resolve.ActivateCartRandomAt(x, y, DestroyViewRoutine);
+
+            // ✅ если ходов стало 0 — завершаем игру
+            if (gameOverAfter)
+            {
+                fsm.Set(GameState.GameOver);
+                scoreMoves.TriggerGameOver();
+                busy = true;
+                yield break;
+            }
 
             fsm.Set(GameState.Input);
             busy = false;

@@ -35,17 +35,16 @@ namespace Match3.Game.Systems
         }
 
         // ⚠️ Проход №1: поведение как у тебя сейчас — списываем сразу
-        public bool ConsumeMoveOrGameOver()
+        public bool ConsumeMove()
         {
             _movesLeft--;
             _onMovesChanged?.Invoke(_movesLeft);
+            return _movesLeft <= 0;
+        }
 
-            if (_movesLeft <= 0)
-            {
-                _onGameOver?.Invoke();
-                return true;
-            }
-            return false;
+        public void TriggerGameOver()
+        {
+            _onGameOver?.Invoke();
         }
 
         public void AddDestroyed(int destroyed, int pointsPerGem)

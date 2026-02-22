@@ -37,14 +37,13 @@ namespace Match3.Game.Systems
 
         private readonly System.Action<float> _onCartMeterChanged;
         private readonly int _cartChargeMax;
-
         private int _cartCharge;
 
-        // запоминаем последний свап (чтобы ставить бомбу в “ход игрока”)
+        // запоминаем последний свап (для pivot бомбы)
         private Vector2Int _lastSwapA;
         private Vector2Int _lastSwapB;
 
-        private readonly MonoBehaviour _runner; // чтобы стартовать DestroyRoutine
+        private readonly MonoBehaviour _runner;
 
         public ResolveSystem(
             MonoBehaviour runner,
@@ -131,44 +130,57 @@ namespace Match3.Game.Systems
             var old = _model.Get(c.x, c.y).Value;
             _model.Set(c.x, c.y, new Piece(old.type, SpecialType.Cart));
 
-            // view: заменить объект в клетке на cart prefab (с подписками)
+            // view: заменить объект на cart prefab (с подписками)
             var oldView = _views[c.x, c.y];
             var view = _viewFactory.ReplaceCellWithPrefab(oldView, _cartPrefab, c.x, c.y);
             _views[c.x, c.y] = view;
         }
 
-        public IEnumerator SwapAndResolve(int ax, int ay, int bx, int by,
+        /// <summary>
+        /// Главный вход: swap + resolve.
+        /// Новое правило UX: ход списываем ТОЛЬКО если действие успешно.
+        /// </summary>
+        public IEnumerator SwapAndResolve(
+            int ax, int ay, int bx, int by,
             System.Func<GemView, IEnumerator> destroyRoutine,
-            System.Action<GemView> rebindCartViewHandlers // хак для тележки, чтобы не терять OnSwipe/OnDoubleTap
-        )
+            System.Action<GemView> rebindCartViewHandlers)
         {
-            // Проход №1: как у тебя — ход списываем сразу
-            bool gameOver = _scoreMoves.ConsumeMoveOrGameOver();
-            if (gameOver) yield break;
-
+            // 1) анимация + применение свапа
             yield return _swapService.AnimateAndApplySwap(_model, _views, ax, ay, bx, by);
 
-            // ✅ CART SWAP
+            // 2) CART SWAP (успешное действие -> списываем ход)
             if (_specials.IsCartAt(ax, ay) || _specials.IsCartAt(bx, by))
             {
                 int cartX, cartY, otherX, otherY;
+
                 if (_specials.IsCartAt(ax, ay)) { cartX = ax; cartY = ay; otherX = bx; otherY = by; }
                 else { cartX = bx; cartY = by; otherX = ax; otherY = ay; }
 
                 var otherPiece = _model.Get(otherX, otherY);
+                // активируем только если рядом обычная фишка
                 if (otherPiece.HasValue && otherPiece.Value.special == SpecialType.None)
                 {
+                    // ✅ действие считается успешным
+                    bool gameOverAfter = _scoreMoves.ConsumeMove();
+
                     int targetType = otherPiece.Value.type;
 
-                    // тележка должна иметь обработчики double tap/swipe (на случай если создавалась вручную)
+                    // гарантируем хендлеры (на всякий случай)
                     rebindCartViewHandlers?.Invoke(_views[cartX, cartY]);
 
                     yield return ActivateCartAt(cartX, cartY, targetType, destroyRoutine);
+
+                    if (gameOverAfter) _scoreMoves.TriggerGameOver();
                     yield break;
                 }
+
+                // если свап с тележкой, но невалидный для активации (например рядом спец)
+                // откатываем и ход не тратим
+                yield return _swapService.AnimateAndRollbackSwap(_model, _views, ax, ay, bx, by);
+                yield break;
             }
 
-            // ✅ swap-детонация спецов
+            // 3) SPECIAL SWAP (если после свапа на одной из позиций спец — детонируем; ход тратим)
             var pa = _model.Get(ax, ay);
             var pb = _model.Get(bx, by);
 
@@ -177,23 +189,35 @@ namespace Match3.Game.Systems
 
             if (aSpecial || bSpecial)
             {
+                // ✅ действие считается успешным
+                bool gameOverAfter = _scoreMoves.ConsumeMove();
+
                 yield return DetonateSpecialsAfterSwap(ax, ay, bx, by, destroyRoutine);
                 yield return ResolveLoop(destroyRoutine);
+
+                if (gameOverAfter) _scoreMoves.TriggerGameOver();
                 yield break;
             }
 
-            // validate
+            // 4) validate обычный матч
             var matches = MatchFinder.FindMatches(_model);
+
             if (matches.Count == 0)
             {
+                // ❌ неуспешный свайп -> откат, ход НЕ тратим
                 yield return _swapService.AnimateAndRollbackSwap(_model, _views, ax, ay, bx, by);
                 yield break;
             }
+
+            // ✅ матч есть -> списываем ход
+            bool gameOverAfterMatch = _scoreMoves.ConsumeMove();
 
             _lastSwapA = new Vector2Int(ax, ay);
             _lastSwapB = new Vector2Int(bx, by);
 
             yield return ResolveLoop(destroyRoutine);
+
+            if (gameOverAfterMatch) _scoreMoves.TriggerGameOver();
         }
 
         private GameObject GetBombPrefab(int len)
@@ -273,7 +297,7 @@ namespace Match3.Game.Systems
                     {
                         var cellPiece = _model.Get(c.x, c.y);
                         if (cellPiece.HasValue && cellPiece.Value.special == SpecialType.Cart)
-                            continue;
+                            continue; // тележка не умирает от бомб
 
                         _model.Set(c.x, c.y, null);
 
@@ -315,7 +339,8 @@ namespace Match3.Game.Systems
                     int type = RefillSolver.GetSafeType(_model, c.x, c.y, _gemPrefabs.Length);
                     _model.Set(c.x, c.y, new Piece(type));
 
-                    var view = _viewFactory.CreateGem(_gemPrefabs[type], c.x, c.y, _height, spawnFromAbove: true, cellSize: _boardView.cellSize);
+                    var view = _viewFactory.CreateGem(_gemPrefabs[type], c.x, c.y, _height,
+                        spawnFromAbove: true, cellSize: _boardView.cellSize);
                     _views[c.x, c.y] = view;
 
                     if (view != null)
@@ -394,7 +419,8 @@ namespace Match3.Game.Systems
                 int type = RefillSolver.GetSafeType(_model, c.x, c.y, _gemPrefabs.Length);
                 _model.Set(c.x, c.y, new Piece(type));
 
-                var view = _viewFactory.CreateGem(_gemPrefabs[type], c.x, c.y, _height, spawnFromAbove: true, cellSize: _boardView.cellSize);
+                var view = _viewFactory.CreateGem(_gemPrefabs[type], c.x, c.y, _height,
+                    spawnFromAbove: true, cellSize: _boardView.cellSize);
                 _views[c.x, c.y] = view;
 
                 if (view != null)
@@ -459,7 +485,8 @@ namespace Match3.Game.Systems
                 int type = RefillSolver.GetSafeType(_model, c.x, c.y, _gemPrefabs.Length);
                 _model.Set(c.x, c.y, new Piece(type));
 
-                var view = _viewFactory.CreateGem(_gemPrefabs[type], c.x, c.y, _height, spawnFromAbove: true, cellSize: _boardView.cellSize);
+                var view = _viewFactory.CreateGem(_gemPrefabs[type], c.x, c.y, _height,
+                    spawnFromAbove: true, cellSize: _boardView.cellSize);
                 _views[c.x, c.y] = view;
 
                 if (view != null)
@@ -475,7 +502,6 @@ namespace Match3.Game.Systems
             yield return ResolveLoop(destroyRoutine);
         }
 
-        // ✅ Корутины тележки оставляем тут на проход №1 (как у тебя было)
         public IEnumerator ActivateCartRandomAt(int cartX, int cartY, System.Func<GemView, IEnumerator> destroyRoutine)
         {
             var present = new List<int>();
@@ -555,7 +581,8 @@ namespace Match3.Game.Systems
                 int type = RefillSolver.GetSafeType(_model, c.x, c.y, _gemPrefabs.Length);
                 _model.Set(c.x, c.y, new Piece(type));
 
-                var view = _viewFactory.CreateGem(_gemPrefabs[type], c.x, c.y, _height, spawnFromAbove: true, cellSize: _boardView.cellSize);
+                var view = _viewFactory.CreateGem(_gemPrefabs[type], c.x, c.y, _height,
+                    spawnFromAbove: true, cellSize: _boardView.cellSize);
                 _views[c.x, c.y] = view;
 
                 if (view != null)
