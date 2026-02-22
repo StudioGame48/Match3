@@ -34,6 +34,7 @@ namespace Match3.Game.Systems
         private readonly ViewFactory _viewFactory;
         private readonly SpecialSystem _specials;
         private readonly ScoreMovesSystem _scoreMoves;
+        private readonly System.Action<Piece> _onPieceCleared;
 
         private readonly System.Action<float> _onCartMeterChanged;
         private readonly int _cartChargeMax;
@@ -57,6 +58,7 @@ namespace Match3.Game.Systems
             ViewFactory viewFactory,
             SpecialSystem specials,
             ScoreMovesSystem scoreMoves,
+            System.Action<Piece> onPieceCleared,
             int cartChargeMax,
             int cartChargeStart,
             System.Action<float> onCartMeterChanged)
@@ -67,6 +69,7 @@ namespace Match3.Game.Systems
             _views = views;
             _width = width;
             _height = height;
+            _onPieceCleared = onPieceCleared;
 
             _boardView = boardView;
             _gridParent = gridParent;
@@ -299,6 +302,8 @@ namespace Match3.Game.Systems
                         if (cellPiece.HasValue && cellPiece.Value.special == SpecialType.Cart)
                             continue; // тележка не умирает от бомб
 
+                        if (cellPiece.HasValue) _onPieceCleared?.Invoke(cellPiece.Value);
+
                         _model.Set(c.x, c.y, null);
 
                         var view = _views[c.x, c.y];
@@ -383,6 +388,7 @@ namespace Match3.Game.Systems
                 var cellPiece = _model.Get(cell.x, cell.y);
                 if (cellPiece.HasValue && cellPiece.Value.special == SpecialType.Cart)
                     continue;
+                if (cellPiece.HasValue) _onPieceCleared?.Invoke(cellPiece.Value);
 
                 _model.Set(cell.x, cell.y, null);
 
@@ -446,6 +452,10 @@ namespace Match3.Game.Systems
 
             foreach (var c in toDestroy)
             {
+
+                var cellPiece = _model.Get(c.x, c.y);
+                if (piece.HasValue) _onPieceCleared?.Invoke(piece.Value);
+
                 _model.Set(c.x, c.y, null);
 
                 var view = _views[c.x, c.y];
@@ -542,6 +552,10 @@ namespace Match3.Game.Systems
 
             foreach (var c in toDestroy)
             {
+
+                var piece = _model.Get(c.x, c.y);
+                if (piece.HasValue) _onPieceCleared?.Invoke(piece.Value);
+
                 _model.Set(c.x, c.y, null);
 
                 var view = _views[c.x, c.y];

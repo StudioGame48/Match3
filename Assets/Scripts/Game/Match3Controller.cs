@@ -30,8 +30,13 @@ namespace Match3.Game
         [SerializeField] private int pointsPerGem = 10;
 
         public System.Action<int> OnMovesChanged;
+        public event System.Action<int, SpecialType> OnPieceCleared;
+        // int = type (цвет/гем), SpecialType = спец (бомба/тележка/none)
         public System.Action<int> OnScoreChanged;
         public System.Action OnGameOver;
+        public int CurrentScore => scoreMoves?.Score ?? 0;
+        public int CurrentMoves => scoreMoves?.MovesLeft ?? 0;
+
 
         [Header("Bomb Prefabs (match 4-7+)")]
         [SerializeField] private GameObject bomb4Prefab;
@@ -55,7 +60,7 @@ namespace Match3.Game
         private ViewFactory viewFactory;
         private SwapService swapService;
         private ResolveSystem resolve;
-
+        
         void Start()
         {
             model = new BoardModel(width, height);
@@ -97,7 +102,8 @@ namespace Match3.Game
                 scoreMoves: scoreMoves,
                 cartChargeMax: cartChargeMax,
                 cartChargeStart: cartCharge,
-                onCartMeterChanged: OnCartMeterChanged
+                onCartMeterChanged: OnCartMeterChanged,
+                onPieceCleared: (p) => OnPieceCleared?.Invoke(p.type, p.special)
             );
 
             GenerateNoMatches();
@@ -105,6 +111,20 @@ namespace Match3.Game
             resolve.PushCartMeter();
         }
 
+        public void ForceGameOver()
+        {
+            if (busy) return;
+            busy = true;
+            fsm.Set(Match3.Game.State.GameState.GameOver);
+            scoreMoves.TriggerGameOver();
+        }
+
+        public void ApplyLevelTuning(int newPointsPerGem, int newCartMax, int newCartStart)
+        {
+            pointsPerGem = newPointsPerGem;
+            cartChargeMax = newCartMax;
+            cartCharge = newCartStart;
+        }
         public void PushUIState()
         {
             scoreMoves?.PushUIState();
