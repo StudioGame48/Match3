@@ -30,8 +30,12 @@ public class LevelManager : MonoBehaviour
         if (controller == null)
             controller = FindFirstObjectByType<Match3Controller>();
 
-        if (objectives == null)
-            objectives = GetComponent<ObjectiveSystem>(); // если повесили рядом
+        if(objectives == null)
+        {
+            objectives = GetComponent<ObjectiveSystem>();
+            if (objectives == null)
+                objectives = gameObject.AddComponent<ObjectiveSystem>(); 
+        }
 
         // 2) Проверки
         if (controller == null)
@@ -77,7 +81,7 @@ public class LevelManager : MonoBehaviour
     private void OnEnable()
     {
         if (controller == null) return;
-
+        Debug.Log("[LM] OnEnable subscribe");
         // победа/поражение:
         controller.OnGameOver += OnGameOver;
 
@@ -106,6 +110,7 @@ public class LevelManager : MonoBehaviour
         controller.width = cfg.width;
         controller.height = cfg.height;
         controller.maxMoves = cfg.maxMoves;
+        controller.levelConfig = cfg;
 
         // ВАЖНО:
         // pointsPerGem / cartChargeMax / cartChargeStart у вас private [SerializeField] в Match3Controller,

@@ -12,10 +12,22 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c5e1f0fbdd9e12c47ba898d29e3d2d09, type: 3}
   m_Name: Level_01
   m_EditorClassIdentifier: Assembly-CSharp::LevelConfig
-  width: 6
-  height: 6
+  width: 12
+  height: 7
   maxMoves: 20
   targetScore: 500
   pointsPerGem: 10
+  maskRows:
+  - 011111111110
+  - 1111111111111
+  - 011111111110
+  - 1111111111111
+  - 011111111110
+  - 1111111111111
+  - 011111111110
   cartChargeMax: 50
   cartChargeStart: 0
+  goals:
+  - type: 0
+    gemId: 1
+    amount: 10
